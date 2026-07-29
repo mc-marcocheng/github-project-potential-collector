@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "snapshot.schema.json",
+  "title": "Launch snapshot",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "task_id",
+    "sample_id",
+    "repository_id",
+    "intended_snapshot_at",
+    "actual_snapshot_at",
+    "repository_status",
+    "eligible",
+    "eligibility_reasons"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "snapshot"},
+    "protocol_version": {"const": "v1"},
+    "task_id": {"type": "string"},
+    "sample_id": {"type": "string"},
+    "repository_id": {"type": "integer"},
+    "owner_id": {"type": ["integer", "null"]},
+    "intended_snapshot_at": {"type": "string", "format": "date-time"},
+    "actual_snapshot_at": {"type": "string", "format": "date-time"},
+    "snapshot_delay_seconds": {"type": "integer"},
+    "repository_status": {
+      "enum": ["public", "inaccessible"]
+    },
+    "commit_sha": {"type": ["string", "null"]},
+    "description": {"type": "string"},
+    "topics": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "readme_text": {"type": "string"},
+    "readme_sha256": {"type": ["string", "null"]},
+    "readme_truncated": {"type": "boolean"},
+    "stars_at_snapshot": {"type": ["integer", "null"]},
+    "eligible": {"type": "boolean"},
+    "eligibility_protocol": {"const": "v1"},
+    "eligibility_reasons": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "observation.schema.json",
+  "title": "Fixed-horizon repository observation",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "task_id",
+    "sample_id",
+    "repository_id",
+    "horizon_days",
+    "intended_observation_at",
+    "actual_observation_at",
+    "repository_status",
+    "http_status"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "observation"},
+    "protocol_version": {"const": "v1"},
+    "task_id": {"type": "string"},
+    "sample_id": {"type": "string"},
+    "repository_id": {"type": "integer"},
+    "horizon_days": {"enum": [30, 90, 180]},
+    "intended_observation_at": {"type": "string", "format": "date-time"},
+    "actual_observation_at": {"type": "string", "format": "date-time"},
+    "observation_delay_seconds": {"type": "integer"},
+    "repository_status": {
+      "enum": ["public", "inaccessible"]
+    },
+    "stargazers_count": {"type": ["integer", "null"]},
+    "http_status": {"type": "integer"},
+    "timeliness": {
+      "enum": ["on_time", "moderately_late", "late"]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "selection.schema.json",
+  "title": "Repository selection record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "sample_id",
+    "repository_id",
+    "event_id",
+    "event_created_at",
+    "launch_landmark_at",
+    "gharchive_hour",
+    "sampling_probability"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "selection"},
+    "protocol_version": {"const": "v1"},
+    "sample_id": {"type": "string"},
+    "repository_id": {"type": "integer"},
+    "owner_id": {"type": ["integer", "null"]},
+    "event_id": {"type": "string"},
+    "repository_name_at_discovery": {"type": "string"},
+    "event_created_at": {"type": "string", "format": "date-time"},
+    "launch_landmark_at": {"type": "string", "format": "date-time"},
+    "discovered_at": {"type": "string", "format": "date-time"},
+    "gharchive_hour": {"type": "string", "format": "date-time"},
+    "sampling_probability": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "github-project-potential-collector"
+version = "1.0.0"
+description = "Prospective launch-time GitHub repository collector"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+dependencies = []
+
+[tool.setuptools.packages.find]
+include = ["collector*"]

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "owner.schema.json",
+  "title": "Training-only owner metadata",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "sample_id",
+    "owner_id",
+    "owner_group_key",
+    "observed_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "owner"},
+    "protocol_version": {"const": "v1"},
+    "sample_id": {"type": "string"},
+    "owner_id": {"type": "integer"},
+    "owner_group_key": {"type": "string"},
+    "observed_at": {"type": "string", "format": "date-time"},
+    "account_type": {"type": ["string", "null"]},
+    "account_created_at": {"type": ["string", "null"], "format": "date-time"},
+    "followers": {"type": ["integer", "null"]},
+    "following": {"type": ["integer", "null"]},
+    "public_repositories": {"type": ["integer", "null"]},
+    "public_gists": {"type": ["integer", "null"]}
+  },
+  "additionalProperties": true
+}
