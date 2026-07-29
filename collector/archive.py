@@ -23,6 +23,7 @@ class CreationCandidate:
     repository_name_at_discovery: str
     event_created_at: datetime
     gharchive_hour: datetime
+    discovery_event_kind: str
 
     def as_dict(self) -> dict:
         return {
@@ -31,6 +32,7 @@ class CreationCandidate:
             "repository_name_at_discovery": self.repository_name_at_discovery,
             "event_created_at": format_utc(self.event_created_at),
             "gharchive_hour": format_utc(self.gharchive_hour),
+            "discovery_event_kind": self.discovery_event_kind,
         }
 
 
@@ -75,7 +77,7 @@ def download_archive_hour(
     raise RuntimeError(f"Unable to download {archive_url(hour)}") from last_error
 
 
-def iter_repository_creations(
+def iter_repository_launches(
     path: Path,
     gharchive_hour: datetime | None = None,
 ):
@@ -95,7 +97,21 @@ def iter_repository_creations(
                 continue
 
             payload = event.get("payload") or {}
-            if payload.get("ref_type") != "repository":
+            ref_type = payload.get("ref_type")
+
+            if ref_type == "repository":
+                discovery_event_kind = "repository_create"
+            elif (
+                ref_type == "branch"
+                and isinstance(payload.get("ref"), str)
+                and payload.get("ref")
+                and payload.get("ref") == payload.get("master_branch")
+            ):
+                # Current GH Archive data may omit repository-level
+                # CreateEvents. Creation of the initial/default branch is
+                # used as the first usable public launch event.
+                discovery_event_kind = "initial_default_branch_create"
+            else:
                 continue
 
             repository = event.get("repo") or {}
@@ -118,14 +134,15 @@ def iter_repository_creations(
                 repository_name_at_discovery=str(repository.get("name", "")),
                 event_created_at=parse_utc(event_created_at),
                 gharchive_hour=gharchive_hour,
+                discovery_event_kind=discovery_event_kind,
             )
 
 
 def inspect_archive(path: Path) -> dict:
-    creations = list(iter_repository_creations(path))
+    creations = list(iter_repository_launches(path))
     return {
         "path": str(path),
-        "repository_create_events": len(creations),
+        "repository_launch_events": len(creations),
         "first_event_at": (
             format_utc(min(item.event_created_at for item in creations))
             if creations

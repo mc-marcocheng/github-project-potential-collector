@@ -11,7 +11,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from collector.api import GitHubAPI, RateLimitDeferred
-from collector.archive import download_archive_hour, iter_repository_creations
+from collector.archive import download_archive_hour, iter_repository_launches
 from collector.config import Config
 from collector.sampling import is_selected, owner_group_key, sample_id
 from collector.storage import DataStore, GitDataRepository, TaskBucket
@@ -123,7 +123,7 @@ def discover_repositories(
         try:
             archive_path = download_archive_hour(next_hour)
             candidates = list(
-                iter_repository_creations(
+                iter_repository_launches(
                     archive_path,
                     gharchive_hour=next_hour,
                 )
@@ -137,7 +137,7 @@ def discover_repositories(
             break
 
         health.counters["archive_hours_processed"] += 1
-        health.counters["repository_create_events"] += len(candidates)
+        health.counters["repository_launch_events"] += len(candidates)
 
         selection_records: list[dict] = []
         task_records: list[dict] = []
@@ -170,6 +170,7 @@ def discover_repositories(
                 "repository_id": candidate.repository_id,
                 "owner_id": None,
                 "event_id": candidate.event_id,
+                "discovery_event_kind": candidate.discovery_event_kind,
                 "repository_name_at_discovery": (
                     candidate.repository_name_at_discovery
                 ),

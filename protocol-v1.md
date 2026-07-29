@@ -4,15 +4,27 @@ Status: frozen for the first production cohort.
 
 ## 1. Population
 
-The discovery population consists of repository-level `CreateEvent` records
+The discovery population consists of first usable repository launch events
 observed through GH Archive.
 
 A valid discovery event must satisfy:
 
 - `type == "CreateEvent"`
-- `payload.ref_type == "repository"`
 - `repo.id` is a valid integer
 - `created_at` is available
+- One of:
+  - `payload.ref_type == "repository"`, or
+  - `payload.ref_type == "branch"` and
+    `payload.ref == payload.master_branch`
+
+Current GH Archive data may not contain repository-level creation events.
+Creation of the initial/default branch is therefore used as the operational
+first usable public launch event.
+
+This proxy may include a small number of recreated default branches and may
+miss repositories that never create a usable branch. Repository API
+`created_at`, snapshot state, and content availability are retained for
+auditing.
 
 All deterministically selected candidates are retained. Eligibility is derived
 at snapshot time rather than applied destructively during discovery.
@@ -32,14 +44,17 @@ The inclusion probability is stored with every selection record.
 
 ## 3. Prediction landmark
 
+Let the launch event be the accepted GH Archive repository-level creation
+event or initial/default-branch creation event.
+
 The prediction landmark is:
 
-    t0 = repository CreateEvent timestamp + 24 hours
+    t0 = launch event timestamp + 24 hours
 
 The intended and actual snapshot timestamps are stored.
 
-The GH Archive event timestamp is used as the operational repository-creation
-landmark. The GitHub API `created_at` timestamp is retained for auditing.
+The GitHub API repository `created_at` timestamp is retained for auditing.
+It is not assumed to be identical to the first usable public launch time.
 
 ## 4. Snapshot content
 

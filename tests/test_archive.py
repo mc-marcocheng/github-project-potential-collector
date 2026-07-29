@@ -4,12 +4,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from collector.archive import iter_repository_creations
+from collector.archive import iter_repository_launches
 from collector.util import parse_utc
 
 
 class ArchiveTests(unittest.TestCase):
-    def test_only_repository_create_events_are_selected(self):
+    def test_repository_launch_events_are_selected(self):
         events = [
             {
                 "id": "1",
@@ -23,7 +23,11 @@ class ArchiveTests(unittest.TestCase):
                 "type": "CreateEvent",
                 "created_at": "2026-03-01T12:02:00Z",
                 "repo": {"id": 101, "name": "a/c"},
-                "payload": {"ref_type": "branch"},
+                "payload": {
+                    "ref_type": "branch",
+                    "ref": "feature-branch",
+                    "master_branch": "main",
+                },
             },
             {
                 "id": "3",
@@ -39,6 +43,17 @@ class ArchiveTests(unittest.TestCase):
                 "repo": {"id": 100, "name": "a/b"},
                 "payload": {"ref_type": "repository"},
             },
+            {
+                "id": "5",
+                "type": "CreateEvent",
+                "created_at": "2026-03-01T12:05:00Z",
+                "repo": {"id": 103, "name": "a/e"},
+                "payload": {
+                    "ref_type": "branch",
+                    "ref": "main",
+                    "master_branch": "main",
+                },
+            },
         ]
 
         with tempfile.TemporaryDirectory() as directory:
@@ -48,15 +63,24 @@ class ArchiveTests(unittest.TestCase):
                     handle.write(json.dumps(event) + "\n")
 
             results = list(
-                iter_repository_creations(
+                iter_repository_launches(
                     path,
                     parse_utc("2026-03-01T12:00:00Z"),
                 )
             )
 
-        self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].repository_id, 100)
-        self.assertEqual(results[0].repository_name_at_discovery, "a/b")
+        self.assertEqual(
+            [result.repository_id for result in results],
+            [100, 103],
+        )
+        self.assertEqual(
+            results[0].discovery_event_kind,
+            "repository_create",
+        )
+        self.assertEqual(
+            results[1].discovery_event_kind,
+            "initial_default_branch_create",
+        )
 
 
 if __name__ == "__main__":

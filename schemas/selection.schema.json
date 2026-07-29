@@ -9,6 +9,7 @@
     "sample_id",
     "repository_id",
     "event_id",
+    "discovery_event_kind",
     "event_created_at",
     "launch_landmark_at",
     "gharchive_hour",
@@ -22,6 +23,12 @@
     "repository_id": {"type": "integer"},
     "owner_id": {"type": ["integer", "null"]},
     "event_id": {"type": "string"},
+    "discovery_event_kind": {
+      "enum": [
+        "repository_create",
+        "initial_default_branch_create"
+      ]
+    },
     "repository_name_at_discovery": {"type": "string"},
     "event_created_at": {"type": "string", "format": "date-time"},
     "launch_landmark_at": {"type": "string", "format": "date-time"},
