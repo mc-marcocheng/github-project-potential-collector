@@ -5,6 +5,7 @@
   "type": "object",
   "required": [
     "schema_version",
+    "record_type",
     "protocol_version",
     "sample_id",
     "repository_id",
@@ -12,6 +13,7 @@
     "discovery_event_kind",
     "event_created_at",
     "launch_landmark_at",
+    "landmark_offset_hours",
     "gharchive_hour",
     "sampling_probability"
   ],
@@ -38,6 +40,9 @@
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 1
+    },
+    "landmark_offset_hours": {
+      "const": 24
     }
   },
   "additionalProperties": true

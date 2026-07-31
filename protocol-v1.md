@@ -38,23 +38,40 @@ A repository is selected when:
 
     HMAC_SAMPLE_VALUE(repository_id) < sampling_probability
 
-The sampling key and probability are frozen for a production cohort.
+The sampling probability is runtime configuration and may be changed for
+future, unprocessed GH Archive hours. The effective inclusion probability
+is stored with every selection record.
 
-The inclusion probability is stored with every selection record.
+The collector does not enforce equality with probabilities used by earlier
+runs. Downstream estimators must use each record's stored inclusion
+probability when sampling weights are required.
+
+The HMAC sampling key should normally remain unchanged. With the same key,
+a sample selected at a lower probability is nested within a sample selected
+at a higher probability.
 
 ## 3. Prediction landmark
 
-Let the launch event be the accepted GH Archive repository-level creation
-event or initial/default-branch creation event.
+Let `t_launch` be the accepted GH Archive repository-level creation event
+or initial/default-branch creation event.
 
-The prediction landmark is:
+The prediction landmark is the 24-hour readiness point:
 
-    t0 = launch event timestamp + 24 hours
+    t0 = t_launch + 24 hours
 
-The intended and actual snapshot timestamps are stored.
+The purpose of the delay is to measure project content after the owner
+has had one day to establish a launch-ready description and README.
 
-The GitHub API repository `created_at` timestamp is retained for auditing.
-It is not assumed to be identical to the first usable public launch time.
+The intended and actual snapshot timestamps are stored. The collector
+must not capture a snapshot before t0.
+
+A healthy hourly collection run will normally capture the snapshot
+within approximately two hours after t0. Snapshot quality is classified
+using the delay from t0.
+
+The GitHub API repository `created_at` timestamp is retained for
+auditing. It is not assumed to be identical to the accepted public
+launch-event timestamp.
 
 ## 4. Snapshot content
 
@@ -76,15 +93,23 @@ public content-model inputs.
 
 A snapshot is eligible when all of the following hold:
 
-- Repository is public.
-- Repository is not a fork.
-- Repository is not archived.
-- Repository is not disabled.
-- Repository is not marked as a mirror.
-- A launch commit SHA exists.
-- Either:
-  - Normalized README length is at least 200 characters, or
-  - Normalized description length is at least 80 characters.
+- The repository is public.
+- It is not a fork.
+- It is not archived or disabled.
+- It is not marked as a mirror.
+- A readiness-snapshot commit SHA exists.
+- It contains sufficient meaningful project text:
+  - README length of at least 200 normalized characters, or
+  - Description length of at least 80 normalized characters.
+- It is not an obvious personal configuration or generated
+  dependency-cache repository.
+- It is not obvious coursework, homework, or a collection of
+  class assignments.
+- Its qualifying text is not solely a recognized generated
+  README template.
+
+The exclusion rules are deterministic and implemented in
+`collector/eligibility.py`.
 
 Ineligible and inaccessible records remain in the selected cohort.
 
@@ -97,20 +122,28 @@ For every selected repository, tasks are scheduled for:
 - t0 + 90 days
 - t0 + 180 days
 
+Because t0 is 24 hours after the accepted launch event, the 180-day
+outcome endpoint is 181 days after that event.
+
 Outcome observations use:
 
     GET /repositories/{repository_id}
 
-The intended and actual observation timestamps are retained.
+The intended endpoint, actual observation timestamp, and observation
+delay are retained.
 
 ## 7. Primary outcome
 
-For repositories observable at 180 days:
+For repositories observable 180 days after the readiness landmark:
 
     Y_180_10 = 1[stargazers_count(t0 + 180 days) >= 10]
 
-The snapshot star count is retained for secondary post-snapshot growth
-analysis but is never supplied to the launch-content model.
+This is an endpoint star-count target measured 180 days after the
+24-hour readiness snapshot. It is not a target measured 180 days
+after repository creation.
+
+The snapshot star count is retained for auditing and secondary
+analysis but is never supplied to the public content model.
 
 ## 8. Censoring
 
@@ -125,14 +158,17 @@ inaccessible repositories as failures.
 
 ## 9. Timeliness
 
-Observation quality is classified as:
+Snapshot and observation delay are measured from the exact intended
+timestamp. Negative delays are invalid.
 
-- on_time: delay <= 6 hours
+Quality is classified as:
+
+- on_time: 0 <= delay <= 6 hours
 - moderately_late: 6 hours < delay <= 24 hours
 - late: delay > 24 hours
 
 The highest-quality prospective evaluation may be restricted to on-time
-observations.
+records.
 
 ## 10. Owner metadata
 

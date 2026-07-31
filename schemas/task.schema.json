@@ -5,12 +5,14 @@
   "type": "object",
   "required": [
     "schema_version",
+    "record_type",
     "protocol_version",
     "task_id",
     "sample_id",
     "repository_id",
     "task_type",
-    "due_at"
+    "due_at",
+    "landmark_offset_hours"
   ],
   "properties": {
     "schema_version": {"const": 1},
@@ -26,7 +28,10 @@
       "type": ["integer", "null"],
       "enum": [null, 30, 90, 180]
     },
-    "due_at": {"type": "string", "format": "date-time"}
+    "due_at": {"type": "string", "format": "date-time"},
+    "landmark_offset_hours": {
+      "const": 24
+    }
   },
   "additionalProperties": true
 }

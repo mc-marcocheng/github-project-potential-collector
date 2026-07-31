@@ -13,6 +13,8 @@ from pathlib import Path
 from collector.api import GitHubAPI, RateLimitDeferred
 from collector.archive import download_archive_hour, iter_repository_launches
 from collector.config import Config
+from collector.eligibility import evaluate_eligibility as _evaluate_eligibility
+from collector.protocol import observation_due_at, readiness_landmark
 from collector.sampling import is_selected, owner_group_key, sample_id
 from collector.storage import DataStore, GitDataRepository, TaskBucket
 from collector.util import (floor_hour, format_utc, normalize_text, parse_utc,
@@ -160,7 +162,7 @@ def discover_repositories(
                 config.sampling_key,
             )
 
-            landmark = candidate.event_created_at + timedelta(hours=24)
+            landmark = readiness_landmark(candidate.event_created_at)
 
             selection = {
                 "schema_version": 1,
@@ -176,6 +178,7 @@ def discover_repositories(
                 ),
                 "event_created_at": format_utc(candidate.event_created_at),
                 "launch_landmark_at": format_utc(landmark),
+                "landmark_offset_hours": 24,
                 "discovered_at": format_utc(now),
                 "gharchive_hour": format_utc(candidate.gharchive_hour),
                 "sampling_probability": config.sampling_probability,
@@ -198,13 +201,15 @@ def discover_repositories(
 def build_tasks(selection: dict) -> list[dict]:
     sample = selection["sample_id"]
     repository_id = selection["repository_id"]
-    landmark = parse_utc(selection["launch_landmark_at"])
+    launch_event_at = parse_utc(selection["event_created_at"])
+
+    landmark_at = readiness_landmark(launch_event_at)
 
     specifications = [
-        ("snapshot", landmark, None),
-        ("stars-30d", landmark + timedelta(days=30), 30),
-        ("stars-90d", landmark + timedelta(days=90), 90),
-        ("stars-180d", landmark + timedelta(days=180), 180),
+        ("snapshot", landmark_at, None),
+        ("stars-30d", observation_due_at(launch_event_at, 30), 30),
+        ("stars-90d", observation_due_at(launch_event_at, 90), 90),
+        ("stars-180d", observation_due_at(launch_event_at, 180), 180),
     ]
 
     result: list[dict] = []
@@ -251,12 +256,19 @@ def execute_due_tasks(
         new_results: list[dict] = []
         owner_records: list[dict] = []
         attempts: list[dict] = []
+        bucket_has_terminal = True
 
         for task_id, task in sorted(tasks.items()):
             if task_id in terminal_ids:
                 continue
-            if tasks_processed >= config.max_tasks_per_run:
-                break
+
+            due_at = parse_utc(task["due_at"])
+            attempted_at = utc_now()
+
+            if attempted_at < due_at:
+                health.counters["tasks_not_yet_due"] += 1
+                bucket_has_terminal = False
+                continue
 
             tasks_processed += 1
             health.counters["tasks_attempted"] += 1
@@ -310,7 +322,7 @@ def execute_due_tasks(
         store.write_owner_records(owner_records, utc_now())
         store.write_attempt_records(attempts, utc_now())
 
-        if set(tasks) <= terminal_ids:
+        if bucket_has_terminal and set(tasks) <= terminal_ids:
             store.mark_bucket_complete(
                 bucket,
                 completed_at=utc_now(),
@@ -476,12 +488,20 @@ def collect_snapshot(
         else None
     )
 
-    eligible, reasons = evaluate_eligibility(
-        repository=repository,
+    eligible_result = _evaluate_eligibility(
+        repository_status=repository.get("visibility") or "public",
+        full_name=full_name,
+        private=repository.get("private") is True,
+        fork=repository.get("fork") is True,
+        archived=repository.get("archived") is True,
+        disabled=repository.get("disabled") is True,
+        mirror_url_present=bool(repository.get("mirror_url")),
+        commit_sha=commit_sha,
         description=description,
         readme_text=readme_text,
-        commit_sha=commit_sha,
     )
+    eligible = eligible_result.eligible
+    reasons = eligible_result.reasons
 
     snapshot_record = {
         "schema_version": 1,
@@ -494,6 +514,10 @@ def collect_snapshot(
         "intended_snapshot_at": task["due_at"],
         "actual_snapshot_at": format_utc(actual_at),
         "snapshot_delay_seconds": int((actual_at - due_at).total_seconds()),
+        "snapshot_timeliness": classify_timeliness(
+            int((actual_at - due_at).total_seconds())
+        ),
+        "landmark_offset_hours": 24,
         "http_status": repository_response.status,
         "repository_status": "public",
         "current_full_name": full_name,
@@ -542,6 +566,8 @@ def collect_observation(
 
     response = api.get_json(f"/repositories/{repository_id}")
 
+    delay_seconds = int((actual_at - due_at).total_seconds())
+
     common = {
         "schema_version": 1,
         "record_type": "observation",
@@ -552,7 +578,9 @@ def collect_observation(
         "horizon_days": task["horizon_days"],
         "intended_observation_at": task["due_at"],
         "actual_observation_at": format_utc(actual_at),
-        "observation_delay_seconds": int((actual_at - due_at).total_seconds()),
+        "observation_delay_seconds": delay_seconds,
+        "timeliness": classify_timeliness(delay_seconds),
+        "landmark_offset_hours": 24,
         "http_status": response.status,
     }
 
@@ -574,7 +602,6 @@ def collect_observation(
                 "archived": repository.get("archived"),
                 "disabled": repository.get("disabled"),
                 "current_full_name": repository.get("full_name"),
-                "timeliness": classify_delay(actual_at - due_at),
             }
         )
 
@@ -590,7 +617,6 @@ def collect_observation(
                 "archived": None,
                 "disabled": None,
                 "current_full_name": None,
-                "timeliness": classify_delay(actual_at - due_at),
             }
         )
 
@@ -599,41 +625,12 @@ def collect_observation(
     )
 
 
-def evaluate_eligibility(
-    repository: dict,
-    description: str,
-    readme_text: str,
-    commit_sha: str | None,
-) -> tuple[bool, list[str]]:
-    reasons: list[str] = []
-
-    if repository.get("private") is True:
-        reasons.append("not_public")
-    if repository.get("visibility") not in {None, "public"}:
-        reasons.append("not_public")
-    if repository.get("fork") is True:
-        reasons.append("fork")
-    if repository.get("archived") is True:
-        reasons.append("archived")
-    if repository.get("disabled") is True:
-        reasons.append("disabled")
-    if repository.get("mirror_url"):
-        reasons.append("mirror")
-    if not commit_sha:
-        reasons.append("no_launch_commit")
-
-    has_usable_text = len(readme_text) >= 200 or len(description) >= 80
-    if not has_usable_text:
-        reasons.append("insufficient_project_text")
-
-    return not reasons, reasons
-
-
-def classify_delay(delay: timedelta) -> str:
-    seconds = delay.total_seconds()
-    if seconds <= 6 * 3600:
+def classify_timeliness(delay_seconds: int) -> str:
+    if delay_seconds < 0:
+        raise ValueError("Observation delay cannot be negative")
+    if delay_seconds <= 6 * 60 * 60:
         return "on_time"
-    if seconds <= 24 * 3600:
+    if delay_seconds <= 24 * 60 * 60:
         return "moderately_late"
     return "late"
 
@@ -667,6 +664,10 @@ def _inaccessible_snapshot(
         "intended_snapshot_at": task["due_at"],
         "actual_snapshot_at": format_utc(actual_at),
         "snapshot_delay_seconds": int((actual_at - due_at).total_seconds()),
+        "snapshot_timeliness": classify_timeliness(
+            int((actual_at - due_at).total_seconds())
+        ),
+        "landmark_offset_hours": 24,
         "http_status": http_status,
         "repository_status": "inaccessible",
         "commit_sha": None,

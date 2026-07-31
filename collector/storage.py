@@ -11,8 +11,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Iterable
 
-from collector.util import (date_parts, format_utc, hour_parts, parse_utc,
-                            read_jsonl_gzip, write_json_atomic,
+from collector.util import (date_parts, floor_hour, format_utc, hour_parts,
+                            parse_utc, read_jsonl_gzip, write_json_atomic,
                             write_jsonl_gzip_atomic)
 
 
@@ -172,7 +172,12 @@ class DataStore:
             due_hour = parse_utc(
                 f"{year}-{month}-{day}T{hour}:00:00Z"
             )
-            if due_hour > now:
+            current_hour = floor_hour(now)
+
+            # A bucket is processed only after its entire UTC hour has
+            # elapsed. This prevents a task due later in the current hour
+            # from running early.
+            if due_hour >= current_hour:
                 continue
 
             task_directory = base / task_type / year / month / day / hour

@@ -96,7 +96,6 @@ class GitHubAPI:
                     )
 
             except urllib.error.HTTPError as exc:
-                self.requests_made += 1
                 body = exc.read(max_bytes + 1)
                 headers = self._headers(exc.headers)
                 self._update_rate_limit(headers)

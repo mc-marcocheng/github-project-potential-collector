@@ -29,6 +29,23 @@ class SamplingTests(unittest.TestCase):
             owner_group_key(123, self.key),
         )
 
+    def test_higher_probability_selects_superset_for_same_key(self):
+        key = b"x" * 32
+        repository_ids = range(1, 10_000)
+
+        low = {
+            repository_id
+            for repository_id in repository_ids
+            if is_selected(repository_id, key, 0.002)
+        }
+        high = {
+            repository_id
+            for repository_id in repository_ids
+            if is_selected(repository_id, key, 0.02)
+        }
+
+        self.assertTrue(low <= high)
+
 
 if __name__ == "__main__":
     unittest.main()

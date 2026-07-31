@@ -5,12 +5,16 @@
   "type": "object",
   "required": [
     "schema_version",
+    "record_type",
     "protocol_version",
     "task_id",
     "sample_id",
     "repository_id",
     "intended_snapshot_at",
     "actual_snapshot_at",
+    "snapshot_delay_seconds",
+    "snapshot_timeliness",
+    "landmark_offset_hours",
     "repository_status",
     "eligible",
     "eligibility_reasons"
@@ -25,7 +29,10 @@
     "owner_id": {"type": ["integer", "null"]},
     "intended_snapshot_at": {"type": "string", "format": "date-time"},
     "actual_snapshot_at": {"type": "string", "format": "date-time"},
-    "snapshot_delay_seconds": {"type": "integer"},
+    "snapshot_delay_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
     "repository_status": {
       "enum": ["public", "inaccessible"]
     },
@@ -38,6 +45,12 @@
     "readme_text": {"type": "string"},
     "readme_sha256": {"type": ["string", "null"]},
     "readme_truncated": {"type": "boolean"},
+    "snapshot_timeliness": {
+      "enum": ["on_time", "moderately_late", "late"]
+    },
+    "landmark_offset_hours": {
+      "const": 24
+    },
     "stars_at_snapshot": {"type": ["integer", "null"]},
     "eligible": {"type": "boolean"},
     "eligibility_protocol": {"const": "v1"},

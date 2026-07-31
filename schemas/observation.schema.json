@@ -5,6 +5,7 @@
   "type": "object",
   "required": [
     "schema_version",
+    "record_type",
     "protocol_version",
     "task_id",
     "sample_id",
@@ -12,6 +13,9 @@
     "horizon_days",
     "intended_observation_at",
     "actual_observation_at",
+    "observation_delay_seconds",
+    "timeliness",
+    "landmark_offset_hours",
     "repository_status",
     "http_status"
   ],
@@ -25,7 +29,10 @@
     "horizon_days": {"enum": [30, 90, 180]},
     "intended_observation_at": {"type": "string", "format": "date-time"},
     "actual_observation_at": {"type": "string", "format": "date-time"},
-    "observation_delay_seconds": {"type": "integer"},
+    "observation_delay_seconds": {
+      "type": "integer",
+      "minimum": 0
+    },
     "repository_status": {
       "enum": ["public", "inaccessible"]
     },
@@ -33,6 +40,9 @@
     "http_status": {"type": "integer"},
     "timeliness": {
       "enum": ["on_time", "moderately_late", "late"]
+    },
+    "landmark_offset_hours": {
+      "const": 24
     }
   },
   "additionalProperties": true
