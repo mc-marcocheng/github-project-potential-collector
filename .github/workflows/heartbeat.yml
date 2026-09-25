@@ -1,0 +1,49 @@
+name: Repository heartbeat
+
+on:
+  schedule:
+    # Cron cannot express exact 14-day intervals. The 1st and 15th keep the
+    # maximum gap between repository commits at 17 days, well below the
+    # 60-day inactivity window after which GitHub disables scheduled
+    # workflows.
+    - cron: "37 3 1,15 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repository-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: true
+
+      - name: Record heartbeat
+        env:
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          printf '{\n  "schema_version": 1,\n  "generated_at": "%s",\n  "run_id": "%s",\n  "run_number": "%s"\n}\n' \
+            "$timestamp" "$RUN_ID" "$RUN_NUMBER" > .github/heartbeat.json
+          git add .github/heartbeat.json
+
+      - name: Commit and push
+        run: |
+          if git diff --cached --quiet; then
+            echo "No heartbeat changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: repository heartbeat"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
